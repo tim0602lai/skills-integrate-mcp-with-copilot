@@ -130,3 +130,106 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+# In-memory club/member database
+clubs = {
+    "Chess Club": {
+        "description": "Competitive chess practice and tournaments",
+        "members": ["michael@mergington.edu", "daniel@mergington.edu"],
+        "status": "active"
+    }
+}
+
+members = {
+    "michael@mergington.edu": {
+        "name": "Michael",
+        "email": "michael@mergington.edu",
+        "joined_clubs": ["Chess Club"]
+    },
+    "daniel@mergington.edu": {
+        "name": "Daniel",
+        "email": "daniel@mergington.edu",
+        "joined_clubs": ["Chess Club"]
+    }
+}
+
+
+@app.get("/clubs")
+def get_clubs():
+    return clubs
+
+
+@app.post("/clubs")
+def create_club(name: str, description: str):
+    if name in clubs:
+        raise HTTPException(status_code=400, detail="Club already exists")
+    clubs[name] = {
+        "description": description,
+        "members": [],
+        "status": "active"
+    }
+    return {"message": f"Club '{name}' created"}
+
+
+@app.get("/clubs/{club_name}")
+def get_club(club_name: str):
+    if club_name not in clubs:
+        raise HTTPException(status_code=404, detail="Club not found")
+    return clubs[club_name]
+
+
+@app.patch("/clubs/{club_name}")
+def update_club(club_name: str, description: str = None, status: str = None):
+    if club_name not in clubs:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    if description:
+        clubs[club_name]["description"] = description
+    if status:
+        clubs[club_name]["status"] = status
+
+    return {"message": f"Club '{club_name}' updated"}
+
+
+@app.post("/clubs/{club_name}/members")
+def add_member_to_club(club_name: str, email: str, name: str = None):
+    if club_name not in clubs:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    if email in clubs[club_name]["members"]:
+        raise HTTPException(status_code=400, detail="Member already in club")
+
+    clubs[club_name]["members"].append(email)
+    if email not in members:
+        members[email] = {"name": name or email.split("@")[0], "email": email, "joined_clubs": []}
+
+    members[email]["joined_clubs"].append(club_name)
+    return {"message": f"Added member '{email}' to club '{club_name}'"}
+
+
+@app.delete("/clubs/{club_name}/members/{member_email}")
+def remove_member_from_club(club_name: str, member_email: str):
+    if club_name not in clubs:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    if member_email not in clubs[club_name]["members"]:
+        raise HTTPException(status_code=400, detail="Member not in club")
+
+    clubs[club_name]["members"].remove(member_email)
+    if member_email in members:
+        members[member_email]["joined_clubs"].remove(club_name)
+
+    return {"message": f"Removed member '{member_email}' from club '{club_name}'"}
+
+
+@app.get("/members")
+def get_members():
+    return members
+
+
+@app.get("/members/{email}")
+def get_member(email: str):
+    if email not in members:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return members[email]
